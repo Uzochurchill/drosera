@@ -7,8 +7,7 @@ This is a Proof-of-Concept (PoC) for **DroseraNetwork**, showing how a user can 
 - `BatchMinter.sol` → ERC-721 contract that allows batch minting of NFTs in a single transaction.
 - `SimpleMintTrap.sol` → example Drosera trap that detects if too many mints happen in one block and responds to Drosera.
 - `multiMint.js` → simple frontend script to batch mint using ethers.js.
-- `drosera.toml` → configuration for running Drosera with Hoodi testnet.
-                 → Defines which contracts to monitor and how traps should respond.
+- `drosera.toml` → configuration for running Drosera with Hoodi testnet, and Defines which contracts to monitor and how traps should respond.
 
 ## How to Run
 
