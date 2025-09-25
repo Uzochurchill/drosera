@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../src/BatchMintNFT.sol";
+import "../src/BatchMinter.sol";
 import "../src/SimpleMintTrapV2.sol";
 
 contract TrapLogicTest is Test {
@@ -95,5 +95,31 @@ contract TrapLogicTest is Test {
         assertEq(trap.MIN_BURST_SIZE(), 2);
         assertEq(trap.WINDOW_SIZE(), 3);
         assertEq(trap.PERSISTENCE_REQUIRED(), 2);
+    }
+
+    function testRealMintingLimit() public {
+        address user = makeAddr("user");
+        
+        vm.startPrank(user);
+        // ✅ This works - 5 tokens is allowed
+        nft.batchMint(5);
+        assertEq(nft.nextTokenId(), 5);
+
+        // ❌ This should fail - 6 tokens is blocked
+        vm.expectRevert("Cannot mint more than 5 tokens per transaction");
+        nft.batchMint(6);
+        vm.stopPrank();
+    }
+
+    function testOwnerCanMintMore() public {
+        address user = makeAddr("user");
+        
+        // Owner can mint more than 5
+        nft.ownerBatchMint(user, 10);
+        assertEq(nft.nextTokenId(), 10);
+        
+        // But even owner has limits
+        vm.expectRevert("Even owner cannot mint more than 20 at once");
+        nft.ownerBatchMint(user, 21);
     }
 }
