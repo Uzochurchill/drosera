@@ -34,8 +34,9 @@ contract SimpleMintTrapTestV2 is Test {
         nft.mint(6);
         bytes memory s2 = abi.encode(nft.nextTokenId()); // 12
 
-        // build 3-sample array (WINDOW_SIZE = 3)
-        bytes;
+        // ✅ Declare samples as a bytes array with length WINDOW_SIZE
+        bytes ;
+
         samples[0] = s0;
         samples[1] = s1;
         samples[2] = s2;
@@ -59,7 +60,9 @@ contract SimpleMintTrapTestV2 is Test {
         nft.mint(2);
         bytes memory s2 = abi.encode(nft.nextTokenId()); // 5
 
-        bytes;
+        // ✅ Declare samples array
+        bytes ;
+
         samples[0] = s0;
         samples[1] = s1;
         samples[2] = s2;
