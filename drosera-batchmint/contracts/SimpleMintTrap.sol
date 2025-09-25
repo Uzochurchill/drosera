@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -19,11 +18,11 @@ contract SimpleMintTrapV2 is Trap {
     /// @notice Address of the NFT contract being monitored
     address public immutable target;
 
-    /// @notice Configurable thresholds (hardcoded here; could be wired from TOML/config contract)
-    uint256 constant MAX_MINTS_PER_BLOCK = 5;       // main threshold
-    uint256 constant MIN_BURST_SIZE = 2;            // ignore tiny blips
-    uint256 constant WINDOW_SIZE = 3;               // number of blocks to consider
-    uint256 constant PERSISTENCE_REQUIRED = 2;      // consecutive violations needed
+    /// @notice Configurable thresholds - PUBLIC so tests can access them
+    uint256 public constant MAX_MINTS_PER_BLOCK = 5;
+    uint256 public constant MIN_BURST_SIZE = 2;
+    uint256 public constant WINDOW_SIZE = 3;
+    uint256 public constant PERSISTENCE_REQUIRED = 2;
 
     constructor(address _target) {
         target = _target;
@@ -34,7 +33,7 @@ contract SimpleMintTrapV2 is Trap {
     function collect() external view override returns (bytes memory) {
         uint256 counter = IBatchMintNFT(target).nextTokenId();
 
-        // Try/catch for totalSupply in case target doesn’t implement ERC721Enumerable
+        // Try/catch for totalSupply in case target doesn't implement ERC721Enumerable
         uint256 supply = 0;
         try IERC721EnumerableLike(target).totalSupply() returns (uint256 s) {
             supply = s;
@@ -83,4 +82,3 @@ contract SimpleMintTrapV2 is Trap {
         return (false, "");
     }
 }
-
