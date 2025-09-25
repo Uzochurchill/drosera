@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ITrap} from "drosera-contracts/ITrap.sol";
+import {Trap} from "@drosera/contracts/src/Trap.sol";
+
+contract SimpleMintTrapV2 is Trap {
 
 /// @notice Minimal interface for monitored BatchMintNFT
 interface IBatchMintNFT {
