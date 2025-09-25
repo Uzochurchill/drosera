@@ -2,73 +2,98 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../contracts/SimpleMintTrapV2.sol"; // adjust path if your file name/location differs
+import "../src/BatchMintNFT.sol";
+import "../src/SimpleMintTrapV2.sol";
 
-contract MockBatchMintNFT {
-    uint256 public nextTokenId;
-
-    function mint(uint256 amount) external {
-        nextTokenId += amount;
-    }
-}
-
-contract SimpleMintTrapTestV2 is Test {
+contract TrapLogicTest is Test {
+    BatchMintNFT nft;
     SimpleMintTrapV2 trap;
-    MockBatchMintNFT nft;
 
     function setUp() public {
-        nft = new MockBatchMintNFT();
+        nft = new BatchMintNFT();
         trap = new SimpleMintTrapV2(address(nft));
     }
 
-    /// Trigger case: create three samples with two consecutive big deltas
-    function testDetectsSustainedMintBurst() public {
-        // sample 0: initial counter = 0
-        bytes memory s0 = abi.encode(nft.nextTokenId()); // 0
+    function testOriginalLogicWouldFail() public view {
+        // This pattern should trigger with PERSISTENCE_REQUIRED = 2
+        // But your original logic might miss it
+        bytes[] memory samples = new bytes[](4);
+        samples[0] = abi.encode(0, 0);   // start
+        samples[1] = abi.encode(10, 10); // +10 (violation 1)
+        samples[2] = abi.encode(20, 20); // +10 (violation 2) <- should trigger here
+        samples[3] = abi.encode(22, 22); // +2  (normal)
 
-        // simulate block 1: mint 6 (delta = 6; > MAX_MINTS_PER_BLOCK which is 5)
-        nft.mint(6);
-        bytes memory s1 = abi.encode(nft.nextTokenId()); // 6
-
-        // simulate block 2: mint 6 again (delta = 6; second consecutive violation)
-        nft.mint(6);
-        bytes memory s2 = abi.encode(nft.nextTokenId()); // 12
-
-        // ✅ Declare samples as a bytes array with length WINDOW_SIZE
-        bytes ;
-
-        samples[0] = s0;
-        samples[1] = s1;
-        samples[2] = s2;
-
-        (bool shouldRespond, bytes memory msgData) = trap.shouldRespond(samples);
-
-        assertTrue(shouldRespond, "Trap should trigger for sustained burst");
-        assertEq(abi.decode(msgData, (string)), "Sustained mint burst detected");
+        (bool shouldRespond,) = trap.shouldRespond(samples);
+        assertTrue(shouldRespond, "Should detect 2 consecutive violations");
     }
 
-    /// Non-trigger case: small deltas that should not create a sustained violation
-    function testDoesNotTriggerForSmallMints() public {
-        // sample 0: initial counter = 0
-        bytes memory s0 = abi.encode(nft.nextTokenId()); // 0
+    function testNormalActivity() public view {
+        // Normal activity - should NOT trigger
+        bytes[] memory samples = new bytes[](4);
+        samples[0] = abi.encode(0, 0);
+        samples[1] = abi.encode(3, 3);   // +3 mints (under threshold)
+        samples[2] = abi.encode(6, 6);   // +3 mints (under threshold)
+        samples[3] = abi.encode(9, 9);   // +3 mints (under threshold)
 
-        // block 1: small mint (3)
-        nft.mint(3);
-        bytes memory s1 = abi.encode(nft.nextTokenId()); // 3
+        (bool shouldRespond,) = trap.shouldRespond(samples);
+        assertFalse(shouldRespond, "Should NOT trigger on normal activity");
+    }
 
-        // block 2: small mint (2) => delta 2 (not > MAX_MINTS_PER_BLOCK)
-        nft.mint(2);
-        bytes memory s2 = abi.encode(nft.nextTokenId()); // 5
+    function testSingleBurst() public view {
+        // Single burst followed by normal - should NOT trigger
+        bytes[] memory samples = new bytes[](4);
+        samples[0] = abi.encode(0, 0);
+        samples[1] = abi.encode(10, 10); // +10 (violation)
+        samples[2] = abi.encode(12, 12); // +2  (normal)
+        samples[3] = abi.encode(14, 14); // +2  (normal)
 
-        // ✅ Declare samples array
-        bytes ;
+        (bool shouldRespond,) = trap.shouldRespond(samples);
+        assertFalse(shouldRespond, "Should NOT trigger on single burst");
+    }
 
-        samples[0] = s0;
-        samples[1] = s1;
-        samples[2] = s2;
+    function testSustainedBurst() public view {
+        // Sustained burst - SHOULD trigger
+        bytes[] memory samples = new bytes[](4);
+        samples[0] = abi.encode(0, 0);
+        samples[1] = abi.encode(10, 10); // +10 (violation 1)
+        samples[2] = abi.encode(20, 20); // +10 (violation 2) <- triggers here
+        samples[3] = abi.encode(30, 30); // +10 (violation 3)
 
-        (bool shouldRespond, ) = trap.shouldRespond(samples);
+        (bool shouldRespond, bytes memory reason) = trap.shouldRespond(samples);
+        assertTrue(shouldRespond, "Should trigger on sustained burst");
+        
+        string memory reasonStr = abi.decode(reason, (string));
+        assertEq(reasonStr, "Sustained mint burst detected");
+    }
 
-        assertFalse(shouldRespond, "Trap should not trigger for small/normal minting");
+    function testEdgeCases() public view {
+        // Test minimum samples
+        bytes[] memory tooFew = new bytes[](2);
+        tooFew[0] = abi.encode(0, 0);
+        tooFew[1] = abi.encode(100, 100);
+        
+        (bool shouldRespond,) = trap.shouldRespond(tooFew);
+        assertFalse(shouldRespond, "Should not respond with insufficient samples");
+    }
+
+    function testBurstThenRecovery() public view {
+        // Burst, then recovery - should NOT trigger (violations reset)
+        bytes[] memory samples = new bytes[](5);
+        samples[0] = abi.encode(0, 0);
+        samples[1] = abi.encode(10, 10); // +10 (violation)
+        samples[2] = abi.encode(12, 12); // +2  (normal - resets)
+        samples[3] = abi.encode(22, 22); // +10 (violation - starts new streak)
+        samples[4] = abi.encode(32, 32); // +10 (violation - only 1 consecutive)
+
+        (bool shouldRespond,) = trap.shouldRespond(samples);
+        assertFalse(shouldRespond, "Should not trigger when violations are interrupted");
+    }
+
+    function testConstants() public view {
+        // Verify your thresholds
+        assertEq(trap.MAX_MINTS_PER_BLOCK(), 5);
+        assertEq(trap.MIN_BURST_SIZE(), 2);
+        assertEq(trap.WINDOW_SIZE(), 3);
+        assertEq(trap.PERSISTENCE_REQUIRED(), 2);
     }
 }
