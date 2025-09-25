@@ -30,6 +30,7 @@ contract SimpleMintTrapTest is Test {
         nft.mint(10);
         bytes memory latest = abi.encode(nft.nextTokenId());
 
+        // build the samples array
         bytes ;
         samples[0] = prev;
         samples[1] = latest;
@@ -49,6 +50,7 @@ contract SimpleMintTrapTest is Test {
         nft.mint(3);
         bytes memory latest = abi.encode(nft.nextTokenId());
 
+        // build the samples array
         bytes ;
         samples[0] = prev;
         samples[1] = latest;
