@@ -4,8 +4,6 @@ pragma solidity ^0.8.20;
 
 import {Trap} from "@drosera/contracts/src/Trap.sol";
 
-contract SimpleMintTrapV2 is Trap {
-
 /// @notice Minimal interface for monitored BatchMintNFT
 interface IBatchMintNFT {
     function nextTokenId() external view returns (uint256);
@@ -17,7 +15,7 @@ interface IERC721EnumerableLike {
 }
 
 /// @notice SimpleMintTrapV2 detects mint bursts over short windows with persistence
-contract SimpleMintTrapV2 is ITrap {
+contract SimpleMintTrapV2 is Trap {
     /// @notice Address of the NFT contract being monitored
     address public immutable target;
 
