@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../contracts/SimpleMintTrap.sol";
+import "../contracts/SimpleMintTrapV2.sol"; // adjust path if your file name/location differs
 
 contract MockBatchMintNFT {
     uint256 public nextTokenId;
@@ -12,51 +12,60 @@ contract MockBatchMintNFT {
     }
 }
 
-contract SimpleMintTrapTest is Test {
-    SimpleMintTrap trap;
+contract SimpleMintTrapTestV2 is Test {
+    SimpleMintTrapV2 trap;
     MockBatchMintNFT nft;
 
     function setUp() public {
         nft = new MockBatchMintNFT();
-        trap = new SimpleMintTrap(address(nft));
+        trap = new SimpleMintTrapV2(address(nft));
     }
 
-    function testDetectsMintBurst() public {
-        // simulate previous block
-        nft.mint(2);
-        bytes memory prev = abi.encode(nft.nextTokenId());
+    /// Trigger case: create three samples with two consecutive big deltas
+    function testDetectsSustainedMintBurst() public {
+        // sample 0: initial counter = 0
+        bytes memory s0 = abi.encode(nft.nextTokenId()); // 0
 
-        // simulate current block with too many mints
-        nft.mint(10);
-        bytes memory latest = abi.encode(nft.nextTokenId());
+        // simulate block 1: mint 6 (delta = 6; > MAX_MINTS_PER_BLOCK which is 5)
+        nft.mint(6);
+        bytes memory s1 = abi.encode(nft.nextTokenId()); // 6
 
-        // build the samples array
-        bytes ;
-        samples[0] = prev;
-        samples[1] = latest;
+        // simulate block 2: mint 6 again (delta = 6; second consecutive violation)
+        nft.mint(6);
+        bytes memory s2 = abi.encode(nft.nextTokenId()); // 12
 
-        (bool shouldRevert, bytes memory msgData) = trap.shouldRespond(samples);
+        // build 3-sample array (WINDOW_SIZE = 3)
+        bytes;
+        samples[0] = s0;
+        samples[1] = s1;
+        samples[2] = s2;
 
-        assertTrue(shouldRevert, "Trap should trigger");
-        assertEq(abi.decode(msgData, (string)), "Too many mints in one block");
+        (bool shouldRespond, bytes memory msgData) = trap.shouldRespond(samples);
+
+        assertTrue(shouldRespond, "Trap should trigger for sustained burst");
+        assertEq(abi.decode(msgData, (string)), "Sustained mint burst detected");
     }
 
+    /// Non-trigger case: small deltas that should not create a sustained violation
     function testDoesNotTriggerForSmallMints() public {
-        // simulate previous block
-        nft.mint(1);
-        bytes memory prev = abi.encode(nft.nextTokenId());
+        // sample 0: initial counter = 0
+        bytes memory s0 = abi.encode(nft.nextTokenId()); // 0
 
-        // simulate current block with small mint
+        // block 1: small mint (3)
         nft.mint(3);
-        bytes memory latest = abi.encode(nft.nextTokenId());
+        bytes memory s1 = abi.encode(nft.nextTokenId()); // 3
 
-        // build the samples array
-        bytes ;
-        samples[0] = prev;
-        samples[1] = latest;
+        // block 2: small mint (2) => delta 2 (not > MAX_MINTS_PER_BLOCK)
+        nft.mint(2);
+        bytes memory s2 = abi.encode(nft.nextTokenId()); // 5
 
-        (bool shouldRevert, ) = trap.shouldRespond(samples);
+        bytes;
+        samples[0] = s0;
+        samples[1] = s1;
+        samples[2] = s2;
 
-        assertFalse(shouldRevert, "Trap should not trigger");
+        (bool shouldRespond, ) = trap.shouldRespond(samples);
+
+        assertFalse(shouldRespond, "Trap should not trigger for small/normal minting");
     }
 }
